@@ -1,0 +1,172 @@
+import random
+
+def main():
+    table = Table(['Jimmy', 'Silent Bob'])
+    table.deal_cards()
+    table.start_game()
+
+def print_underline(string, line):
+    print(f'\n{string}\n{line*len(string)}')
+
+
+
+class Table:
+    def __init__(self, players):
+        self.players = [Player(name, Hand()) for name in players]
+        self.deck = Deck()
+        self.rounds = 0
+
+    def deal_cards(self):
+        self.deck.shuffle()
+        self.deck.setup_hands(self.players)
+        for player in self.players:
+            player.show_hand()
+
+    def one_round(self, tied=None):
+        if tied is None:
+            self.number_of_rounds()
+        jackpot = Pot()
+        for player in (self.players if tied is None else tied):
+            player.drop_card(jackpot)
+            if tied:
+                player.WAR(jackpot, 3)
+        winner = jackpot.winner
+        if winner is not None:
+            jackpot.collect_all_cards(winner)
+        else:
+            winner = self.one_round(jackpot.tied)
+            jackpot.collect_all_cards(winner)
+        return winner
+
+    def number_of_rounds(self):
+        self.rounds += 1
+        print_underline(f'Starting round {self.rounds}', '=')
+
+    def start_game(self):
+        while not self.finished:
+            self.one_round()
+        self.winner_winner_chicken_dinner()
+
+    def winner_winner_chicken_dinner(self):
+        for player in self.players:
+            if player.hand.has_cards:
+                print()
+                print(player.name, 'wins!')
+                break
+
+#@property: Turn method into an attribute
+    @property 
+    def finished(self):
+        return sum(bool(player.hand.cards) for player in self.players) == 1
+#bool:returns T or F
+
+class Player:
+    def __init__(self, name, hand):
+        self.name = name
+        self.hand = hand
+
+    def drop_card(self, jackpot):
+        if self.hand.has_cards:
+            jackpot.add_card(self.hand.take_top(), self)
+
+    def WAR(self, jackpot, count):
+        jackpot.war_award(self.hand.cards[:count])
+        self.hand.cards = self.hand.cards[count:]
+
+    def win_cards(self, cards):
+        self.hand.add_all(cards)
+
+    def show_hand(self):
+        print(self.name, 'has', self.hand)
+
+
+class Hand:
+    def __init__(self):
+        self.cards = []
+#map() function returns a map object(which is an iterator) of the results after applying the given function to each item of a given iterable (list, tuple etc.)
+    def __str__(self):
+        return ', '.join(map(str, self.cards))
+
+    def add_card(self, card):
+        self.cards.append(card)
+
+    def take_top(self):
+        return self.cards.pop(0)
+
+    def add_all(self, cards):
+        self.cards.extend(cards)
+
+    @property
+    def has_cards(self):
+        return bool(self.cards)
+
+class Deck:
+    def __init__(self):
+        self.cards = [Card(s, r) for s in Card.SUITE for r in Card.CARDS]
+
+    def shuffle(self):
+        random.shuffle(self.cards)
+
+    def setup_hands(self, players):
+        hands = [player.hand for player in players]
+        while len(self.cards) >= len(players):
+            for hand in hands:
+                hand.add_card(self.cards.pop())
+        return hands
+
+class Card:
+    SUITE = 'H D S C'.split()
+    CARDS = '2 3 4 5 6 7 8 9 10 J Q K A'.split()
+
+    def __init__(self, suite, card_number):
+        self.suite, self.card_number = suite, card_number
+
+    def __str__(self):
+        return (f'{self.card_number}-{self.suite}')
+
+    @property
+    def card_value(self):
+        return self.CARDS.index(self.card_number)
+
+
+class Pot:
+    def __init__(self):
+        self.cards = []
+        self.players = []
+        self.bonus = []
+
+    def add_card(self, card, player):
+        self.cards.append(card)
+        self.players.append(player)
+
+    def war_award(self, cards):
+        self.bonus.extend(cards)
+
+    @property
+    def winner(self):
+        self.flipped_card()
+        card_values = [card.card_value for card in self.cards]
+        self.best = max(card_values)
+        if card_values.count(self.best) == 1:
+            return self.players[card_values.index(self.best)]
+
+#The zip() function returns a zip object, which is an iterator of tuples where the first item in each passed iterator is paired together, and then the second item in each passed iterator are paired together etc.
+    
+    def flipped_card(self):
+        for player, card in zip(self.players, self.cards):
+            print(f'{player.name} laid down a {card}.')
+
+    def collect_all_cards(self, player):
+        player.win_cards(self.cards)
+        player.win_cards(self.bonus)
+
+    @property
+    def tied(self):
+        for card, player in zip(self.cards, self.players):
+            if card.card_value == self.best:
+                yield player
+
+# When you run your script, the __name__ variable equals __main__. When you import the containing script, it will contain the name of the script.
+
+if __name__ == '__main__':
+    main()
